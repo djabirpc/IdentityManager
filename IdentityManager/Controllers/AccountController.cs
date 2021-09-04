@@ -1,7 +1,9 @@
 ﻿using IdentityManager.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,9 +13,12 @@ using System.Threading.Tasks;
 
 namespace IdentityManager.Controllers
 {
+
+
     public class AccountController : Controller
     {
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly IEmailSender _emailSender;
         private readonly UrlEncoder _urlEncoder;
@@ -21,12 +26,14 @@ namespace IdentityManager.Controllers
         public AccountController(UserManager<IdentityUser> userManager,
             SignInManager<IdentityUser> signInManager,
             IEmailSender emailSender,
-            UrlEncoder urlEncoder)
+            UrlEncoder urlEncoder,
+            RoleManager<IdentityRole> roleManager)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _emailSender = emailSender;
             _urlEncoder = urlEncoder;
+            _roleManager = roleManager;
         }
 
         public IActionResult Index()
@@ -35,14 +42,39 @@ namespace IdentityManager.Controllers
         }
 
         [HttpGet]
-        public IActionResult Register(string returnUrl = null)
+        [AllowAnonymous]
+        public async Task<IActionResult> Register(string returnUrl = null)
         {
+            if (!await _roleManager.RoleExistsAsync("Admin"))
+            {
+                //create roles
+                await _roleManager.CreateAsync(new IdentityRole("Admin"));
+                await _roleManager.CreateAsync(new IdentityRole("User"));
+            }
+
+            List<SelectListItem> listItems = new List<SelectListItem>();
+            listItems.Add(new SelectListItem()
+            {
+                Value = "Admin",
+                Text = "Admin"
+            });
+            listItems.Add(new SelectListItem()
+            {
+                Value = "User",
+                Text = "User"
+            });
+
             ViewData["ReturnUrl"] = returnUrl;
-            RegisterViewModel registerViewModel = new RegisterViewModel();
+            RegisterViewModel registerViewModel = new RegisterViewModel()
+            {
+                RoleList = listItems
+            };
             return View(registerViewModel);
         }
 
         [HttpPost]
+        [AllowAnonymous]
+
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register(RegisterViewModel model,
             string returnUrl = null)
@@ -55,6 +87,17 @@ namespace IdentityManager.Controllers
                 var result = await _userManager.CreateAsync(user, model.Password);
                 if (result.Succeeded)
                 {
+                    if (model.RoleSelected != null && model.RoleSelected.Length > 0 && model.RoleSelected == "Admin")
+                    {
+                        await _userManager.AddToRoleAsync(user, "Admin");
+                    }
+                    else
+                    {
+                        await _userManager.AddToRoleAsync(user, "User");
+
+                    }
+
+
                     var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
                     var callbackurl = Url.Action("ConfirmEmail", "Account", new { userId = user.Id, code = code }, protocol: HttpContext.Request.Scheme);
 
@@ -66,11 +109,23 @@ namespace IdentityManager.Controllers
                 }
                 AddErrors(result);
             }
-
+            List<SelectListItem> listItems = new List<SelectListItem>();
+            listItems.Add(new SelectListItem()
+            {
+                Value = "Admin",
+                Text = "Admin"
+            });
+            listItems.Add(new SelectListItem()
+            {
+                Value = "User",
+                Text = "User"
+            });
+            model.RoleList = listItems;
             return View(model);
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> ConfirmEmail(string userId, string code)
         {
             if (userId == null || code == null)
@@ -88,6 +143,7 @@ namespace IdentityManager.Controllers
 
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult Login(string returnUrl = null)
         {
             ViewData["ReturnUrl"] = returnUrl;
@@ -96,6 +152,7 @@ namespace IdentityManager.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginViewModel model, string returnUrl = null)
         {
@@ -110,7 +167,7 @@ namespace IdentityManager.Controllers
                 }
                 if (result.RequiresTwoFactor)
                 {
-                    return RedirectToAction(nameof(VerifyAuthenticatorCode), new {  returnUrl ,model.RememberMe});
+                    return RedirectToAction(nameof(VerifyAuthenticatorCode), new { returnUrl, model.RememberMe });
                 }
                 if (result.IsLockedOut)
                 {
@@ -144,6 +201,7 @@ namespace IdentityManager.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordViewmodel model)
         {
@@ -169,18 +227,21 @@ namespace IdentityManager.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ForgotPasswordConfirmation()
         {
             return View();
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ResetPassword(string code = null)
         {
             return code == null ? View("Error") : View();
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
         {
@@ -205,12 +266,14 @@ namespace IdentityManager.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ResetPasswordConfirmation()
         {
             return View();
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public IActionResult ExternalLogin(string provider, string returnurl = null)
         {
@@ -221,6 +284,7 @@ namespace IdentityManager.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> ExternalLoginCallback(string returnurl = null, string remoteError = null)
         {
             returnurl = returnurl ?? Url.Content("~/");
@@ -243,7 +307,7 @@ namespace IdentityManager.Controllers
                 await _signInManager.UpdateExternalAuthenticationTokensAsync(info);
                 return LocalRedirect(returnurl);
             }
-            if(result.RequiresTwoFactor)
+            if (result.RequiresTwoFactor)
             {
                 return RedirectToAction("VerifyAuthenticatorCode", new { returnurl = returnurl });
             }
@@ -259,6 +323,7 @@ namespace IdentityManager.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ExternalLoginConfirmation(ExternalLoginConfirmationViewModel model, string returnurl = null)
         {
@@ -275,6 +340,8 @@ namespace IdentityManager.Controllers
                 var result = await _userManager.CreateAsync(user);
                 if (result.Succeeded)
                 {
+                    await _userManager.AddToRoleAsync(user, "User");
+
                     result = await _userManager.AddLoginAsync(user, info);
                     if (result.Succeeded)
                     {
@@ -302,7 +369,7 @@ namespace IdentityManager.Controllers
                 _urlEncoder.Encode("IdentityManager"),
                 _urlEncoder.Encode(user.Email),
                 token);
-            var model = new TwoFactorAuthenticationViewModel() { Token = token,QRCodeUrl= AuthenticatorUri };
+            var model = new TwoFactorAuthenticationViewModel() { Token = token, QRCodeUrl = AuthenticatorUri };
             return View(model);
 
         }
@@ -337,20 +404,22 @@ namespace IdentityManager.Controllers
             var user = await _userManager.GetUserAsync(User);
             await _userManager.ResetAuthenticatorKeyAsync(user);
             await _userManager.SetTwoFactorEnabledAsync(user, false);
-            return RedirectToAction(nameof(Index),"Home");
+            return RedirectToAction(nameof(Index), "Home");
 
         }
 
+        [HttpGet]
         public IActionResult AuthenticatorConfirmation()
         {
             return View();
         }
 
         [HttpGet]
-        public async Task<IActionResult> VerifyAuthenticatorCode(bool rememberMe,string returnUrl = null)
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyAuthenticatorCode(bool rememberMe, string returnUrl = null)
         {
             var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
-            if(user == null)
+            if (user == null)
             {
                 return View("Error");
             }
@@ -359,6 +428,7 @@ namespace IdentityManager.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyAuthenticatorCode(VerifyAuthenticatorViewModel model)
         {
@@ -376,7 +446,7 @@ namespace IdentityManager.Controllers
             }
             if (result.RequiresTwoFactor)
             {
-                
+
             }
             if (result.IsLockedOut)
             {
@@ -389,7 +459,7 @@ namespace IdentityManager.Controllers
             }
         }
 
-         private void AddErrors(IdentityResult result)
+        private void AddErrors(IdentityResult result)
         {
             foreach (var error in result.Errors)
             {

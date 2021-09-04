@@ -9,17 +9,28 @@
         var twoFactor = ViewData["TwoFactorEnabled"];
         if (twoFactor != null && twoFactor.ToString().ToLower() == "true")
         {
-            <a asp-action="RemoveAuthenticator" 
+            <a asp-action="RemoveAuthenticator"
                asp-controller="Account"
                class="btn btn-outline-warning">Reset & Remove Two Factor Auth</a>
         }
         else
         {
-            <a asp-action="EnableAuthenticator" 
+            <a asp-action="EnableAuthenticator"
                asp-controller="Account"
                class="btn btn-outline-primary">Setup Two Factor Auth</a>
         }
+        <br />
+        <hr />
+        @if (User.IsInRole("Admin"))
+        {
 
+
+            <h2>Your Role is <strong>Admin</strong></h2>
+        }
+        else
+        {
+            <h2>Your Role is <strong>User</strong></h2>
+        }
 
     }
     <br />
