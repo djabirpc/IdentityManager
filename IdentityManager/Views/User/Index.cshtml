@@ -1,14 +1,14 @@
 ﻿@model IEnumerable<ApplicationUser>
 
-    <br />
-    <div class="row">
-        <div class="col-6">
-            <h2 class="text-primary">User List</h2>
-        </div>
+<br />
+<div class="row">
+    <div class="col-6">
+        <h2 class="text-primary">User List</h2>
     </div>
-    <div class="p-4 border rounded">
-        @if(Model.Count() > 0)
-            {
+</div>
+<div class="p-4 border rounded">
+    @if (Model.Count() > 0)
+    {
         <table class="table table-striped border">
             <tr class="table-secondary">
                 <th>Email</th>
@@ -22,9 +22,39 @@
                     <td>@item.Email</td>
                     <td>@item.Name</td>
                     <td>@item.Role</td>
-                    <td></td>
+                    <td>
+                        <div class="text-center">
+                            <form asp-action="Delete" asp-route-userId="@item.Id">
+                                <a asp-action="Edit" asp-route-userId="@item.Id" class="btn btn-info text-white" style="cursor:pointer">
+                                    Edit
+                                </a>
+
+                                @if (item.LockoutEnd == null || item.LockoutEnd < DateTime.Now)
+                                {
+                                    <button asp-action="LockUnlock" asp-route-userId="@item.Id"
+                                            class="btn btn-success text-white"
+                                            style="cursor:pointer">
+                                        &nbsp; Lock
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button asp-action="LockUnlock" asp-route-userId="@item.Id"
+                                            class="btn btn-warning text-white"
+                                            style="cursor:pointer">
+                                        &nbsp; UnLock
+                                    </button>
+                                }
+
+                                <button type="submit" onclick="return confirm('Are you sure you want to delete ?')"
+                                        class="btn btn-danger">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
             }
         </table>
-            }
-    </div>
+    }
+</div>
