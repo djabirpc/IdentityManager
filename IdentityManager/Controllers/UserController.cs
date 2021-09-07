@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace IdentityManager.Controllers
@@ -149,6 +150,72 @@ namespace IdentityManager.Controllers
             TempData[SD.Success] = "User deleted!";
             return RedirectToAction(nameof(Index));
 
+        }
+    
+        [HttpGet]
+        public async Task<IActionResult> ManageUserClaims(string userId)
+        {
+            IdentityUser user = await _userManager.FindByIdAsync(userId);
+            if(user == null)
+            {
+                return NotFound();
+            }
+
+            var existingUserClaims = await _userManager.GetClaimsAsync(user);
+
+            var model = new UserClaimsViewModel()
+            {
+                UserId = userId
+            };
+
+            foreach(Claim claim in ClaimStore.claimsList)
+            {
+                UserClaim userClaim = new UserClaim
+                {
+                    ClaimType = claim.Type
+                };
+                if(existingUserClaims.Any(c => c.Type == claim.Type))
+                {
+                    userClaim.IsSelected = true;
+                }
+                model.Claims.Add(userClaim);
+            }
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ManageUserClaims(UserClaimsViewModel userClaimsViewModel)
+        {
+            IdentityUser user = await _userManager.FindByIdAsync(userClaimsViewModel.UserId);
+
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            var claims = await _userManager.GetClaimsAsync(user);
+            var result = await _userManager.RemoveClaimsAsync(user, claims);
+
+            if (!result.Succeeded)
+            {
+                TempData[SD.Error] = "Error while removing claims";
+                return View(userClaimsViewModel);
+            }
+
+            result = await _userManager.AddClaimsAsync(user,
+                userClaimsViewModel.Claims.Where(c => c.IsSelected).Select(c => new Claim(c.ClaimType, c.IsSelected.ToString()))
+                );
+
+            if (!result.Succeeded)
+            {
+                TempData[SD.Error] = "Error while adding claims";
+                return View(userClaimsViewModel);
+            }
+
+            TempData[SD.Success] = "Claims updated successfully";
+            return RedirectToAction(nameof(Index));
         }
     }
 }
